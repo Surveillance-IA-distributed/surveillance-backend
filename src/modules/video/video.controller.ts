@@ -33,10 +33,16 @@ export class VideoController {
     return this.videoService.handleFileUpload(file);
   }
 
-  // Get Uploaded video files
-  @Get('list-videos')
-  getVideos() {
-    return this.videoService.getVideoList();
+  // Get Scanned videos list
+  @Get('list-videos-scanned')
+  getScannedVideosList() {
+    return this.videoService.getScannedVideosList();
+  }
+
+  // Get Uploaded videos list
+  @Get('list-videos-uploaded')
+  getUploadedVideosList() {
+    return this.videoService.getUploadedVideosList();
   }
 
   // Scan a video file

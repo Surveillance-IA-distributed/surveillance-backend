@@ -21,7 +21,7 @@ export class VideoService {
     };
   }
 
-  async getVideoList(): Promise<{ videos: string[] }> {
+  async getScannedVideosList(): Promise<{ videos: string[] }> {
     console.log('-----------------------------------');
     console.log('Getting video list...');
     const detectionFolder = path.join(process.cwd(), 'detections');
@@ -54,6 +54,38 @@ export class VideoService {
       console.error('Error reading videos:', error);
       throw new HttpException(
         'Error reading videos',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async getUploadedVideosList(): Promise<{ videos: string[] }> {
+    const uploadsFolder = path.join(process.cwd(), 'uploads');
+
+    console.log('Buscando videos subidos en:', uploadsFolder);
+
+    try {
+      const files = await fs.promises.readdir(uploadsFolder);
+
+      // Filtrar solo archivos de video .mp4
+      const videoFiles = files.filter((file) => file.endsWith('.mp4'));
+
+      if (videoFiles.length === 0) {
+        console.log('No hay videos en uploads');
+        throw new HttpException(
+          'No uploaded videos found',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      console.log('Videos encontrados en uploads:', videoFiles);
+      return {
+        videos: videoFiles,
+      };
+    } catch (error) {
+      console.error('Error leyendo carpeta uploads:', error);
+      throw new HttpException(
+        'Error reading uploaded videos',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

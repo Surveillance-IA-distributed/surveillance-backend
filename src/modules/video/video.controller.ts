@@ -60,4 +60,13 @@ export class VideoController {
   makeQuery(@Body() body: MakeQueryDto) {
     return this.videoService.sendQueryToApiCluster(body);
   }
+  @Post('add-alert')
+  async addAlert(@Body() body: { alert: string }) {
+    this.videoService.addAlert(body);
+    console.log('📥 Alerta recibida vía HTTP');
+  
+    await this.videoService.executeAlerts();
+  
+    return { message: 'Alerta agregada y ejecutada (si corresponde).' };
+  }
 }

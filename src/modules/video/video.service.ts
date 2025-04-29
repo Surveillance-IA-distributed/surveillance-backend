@@ -4,6 +4,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import axios from 'axios';
 import { QueryData } from './dto/queryData.interface';
+import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class VideoService {
@@ -20,6 +21,7 @@ export class VideoService {
       filePath: file.path,
     };
   }
+  constructor(private readonly alertService: AlertService) {}
 
   async getScannedVideosList(): Promise<{ videos: string[] }> {
     console.log('-----------------------------------');
@@ -91,42 +93,51 @@ export class VideoService {
     }
   }
 
+  async addAlert(alert: { alert: string}) {
+
+    this.alertService.addAlert(alert);
+  }
+
+  async executeAlerts(): Promise<void> {
+    await this.alertService.executeAlerts();
+  }
+
   async runScanScript(): Promise<{ message: string; results: string[] }> {
     console.log('-----------------------------------');
     console.log('Scanning video...');
-
+  
     const scriptPath = path.join(process.cwd(), 'python', 'scanner.py');
     const uploadFolder = path.join(process.cwd(), 'uploads');
     const detectionsFolder = path.join(process.cwd(), 'detections');
-
-    console.log('Script path:', scriptPath);
-    console.log('Upload folder:', uploadFolder);
-    console.log('Detections folder:', detectionsFolder);
-
+  
     return new Promise((resolve, reject) => {
       const pythonProcess = spawn('python3', [
         scriptPath,
         uploadFolder,
         detectionsFolder,
       ]);
-
+  
       let outputData = '';
       let errorData = '';
-
+  
       pythonProcess.stdout.on('data', (data: Buffer) => {
         outputData += data.toString();
         console.log(`stdout: ${data.toString()}`);
       });
-
+  
       pythonProcess.stderr.on('data', (data: Buffer) => {
         errorData += data.toString();
         console.error(`stderr: ${data.toString()}`);
       });
-
-      pythonProcess.on('close', (code) => {
+  
+      pythonProcess.on('close', async (code) => {
         console.log(`Python script exited with code ${code}`);
         if (code === 0) {
           console.log('Python script executed successfully:', outputData);
+          
+          // ✅ Aquí ejecutamos las alertas guardadas
+          await this.executeAlerts(); // <-- LLAMADA CLAVE
+  
           resolve({
             message: 'Video scan completed successfully',
             results: outputData.trim().split('\n'),

@@ -28,6 +28,9 @@ COPY . .
 COPY ./python/requirements.txt ./python/requirements.txt
 RUN pip3 install --no-cache-dir -r ./python/requirements.txt
 
+# Instalar las dependencias de Python
+# RUN pip3 install --no-cache-dir psycopg2-binary requests -> se le añadio al requeriments.txt
+
 # Etapa 2: Imagen final
 FROM node:20-bullseye-slim
 
@@ -47,17 +50,25 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     python3 \
     python3-pip \
+    curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copiar todo desde builder
 COPY --from=builder /usr/src/app /usr/src/app
 
-# Instalar solo dependencias necesarias para desarrollo
-RUN pip3 install --no-cache-dir -r ./python/requirements.txt
+# Instalar dependencias Python para producción
+RUN pip3 install --no-cache-dir psycopg2-binary requests
+
+# Instalar dependencias npm
 RUN npm install
 # NestJS CLI global
 RUN npm install -g @nestjs/cli
 
+# Crear directorios necesarios
+RUN mkdir -p /usr/src/app/scripts
+
+# Dar permisos de ejecución a los scripts de Python
+RUN chmod +x /usr/src/app/scripts/*.py 2>/dev/null || true
 
 EXPOSE 3000
 # Modo desarrollo (con live reload)

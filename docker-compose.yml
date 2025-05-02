@@ -1,0 +1,104 @@
+version: '3'
+
+services:
+  # Servicio de base de datos PostgreSQL
+  postgres:
+    image: postgres:13
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+    restart: always
+
+  # Servicio para cargar datos iniciales
+  data_loader:
+    build:
+      context: ./postgresql
+      dockerfile: data/Dockerfile
+    container_name: data_loader
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: videodata
+    volumes:
+      - ./postgresql/data_cluster:/app/data_cluster
+    networks:
+      - app_network
+
+  # Servicio API FastAPI
+  video_api:
+    build:
+      context: ./postgresql
+      dockerfile: api/Dockerfile
+    container_name: video_api
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      data_loader:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: videodata
+      LOG_LEVEL: INFO
+    volumes:
+      - ./postgresql/API_cluster:/app/API_cluster
+    networks:
+      - app_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Servicio Backend NestJS
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nest-backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      data_loader:
+        condition: service_completed_successfully
+    volumes:
+      - ./backend:/usr/src/app
+      - ./postgresql/data_cluster:/usr/src/postgres
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: videodata
+      NODE_ENV: development
+    networks:
+      - app_network
+    restart: always
+
+# Volúmenes persistentes
+volumes:
+  postgres_data:
+
+# Redes
+networks:
+  app_network:
+    driver: bridge

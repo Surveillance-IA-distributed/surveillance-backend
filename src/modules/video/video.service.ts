@@ -63,6 +63,9 @@ export class VideoService {
   }
 
   async getUploadedVideosList(): Promise<{ videos: string[] }> {
+    console.log('-----------------------------------');
+    console.log('Getting uploaded video list...');
+
     const uploadsFolder = path.join(process.cwd(), 'uploads');
 
     console.log('Buscando videos subidos en:', uploadsFolder);
@@ -244,6 +247,9 @@ export class VideoService {
   }
 
   async sendQueryToApiCluster(body: any): Promise<any> {
+    console.log('-----------------------------------');
+    console.log('Sending query to API cluster...');
+
     const {
       type,
       video_name,

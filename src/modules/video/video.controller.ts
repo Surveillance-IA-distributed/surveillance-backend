@@ -66,7 +66,7 @@ export class VideoController {
     this.videoService.addAlert(body);
     console.log('📥 Alerta recibida vía HTTP');
 
-    await this.videoService.executeAlerts();
+    // await this.videoService.executeAlerts();
 
     return { message: 'Alerta agregada y ejecutada (si corresponde).' };
   }

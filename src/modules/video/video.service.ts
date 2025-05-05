@@ -1,3 +1,4 @@
+import { DatabaseService } from 'src/database/database.service';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,8 +9,25 @@ import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class VideoService {
-  constructor(private readonly alertService: AlertService) {}
+  constructor(
+    private readonly alertService: AlertService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
+  private uploadedVideos: string[] = [];
+
+  // ################ AUX ###################
+  addUploadedVideo(filename: string) {
+    const name = path.parse(filename).name;
+    this.uploadedVideos.push(name);
+  }
+
+  getLastUploadedVideo(): string | null {
+    if (this.uploadedVideos.length === 0) return null;
+    return this.uploadedVideos[this.uploadedVideos.length - 1];
+  }
+
+  // ################### SUBIR VIDEO ###################
   handleFileUpload(file: Express.Multer.File) {
     if (!file || !file.path) {
       console.error('File upload failed:', file);
@@ -18,12 +36,17 @@ export class VideoService {
 
     console.log('-----------------------------------');
     console.log('File uploaded successfully:', file);
+
+    this.addUploadedVideo(file.filename);
+    console.log('Uploaded videos:', this.uploadedVideos);
+
     return {
       message: 'File uploaded successfully',
       filePath: file.path,
     };
   }
 
+  // ################### LISTAR VIDEOS ESCANEADOS ###################
   async getScannedVideosList(): Promise<{ videos: string[] }> {
     console.log('-----------------------------------');
     console.log('Getting video list...');
@@ -66,6 +89,7 @@ export class VideoService {
     }
   }
 
+  // ################### LISTAR VIDEOS SUBIDOS ###################
   async getUploadedVideosList(): Promise<{ videos: string[] }> {
     console.log('-----------------------------------');
     console.log('Getting uploaded video list...');
@@ -105,6 +129,7 @@ export class VideoService {
     }
   }
 
+  // ################### ESCANEAR VIDEO ###################
   addAlert(alert: { alert: string }) {
     this.alertService.addAlert(alert);
   }
@@ -144,21 +169,167 @@ export class VideoService {
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       pythonProcess.on('close', async (code) => {
         console.log(`Python script exited with code ${code}`);
-        if (code === 0) {
-          console.log('Python script executed successfully:', outputData);
+        if (code !== 0) {
+          return reject(
+            new HttpException(
+              `Python script execution failed: ${errorData}`,
+              HttpStatus.INTERNAL_SERVER_ERROR,
+            ),
+          );
+        }
 
-          // ✅ Aquí ejecutamos las alertas guardadas
-          // await this.executeAlerts(); // <-- LLAMADA CLAVE
+        console.log('Python script executed successfully:', outputData);
+        try {
+          // 1. Obtenemos el video que se proceso
+          const videoName = this.getLastUploadedVideo();
+          if (!videoName) {
+            throw new HttpException(
+              'No video found in queue.',
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          const videoFolder = path.join(detectionsFolder, videoName);
+          const files = await fs.promises.readdir(videoFolder);
+
+          // 2. Procesar archivos collage_*.json (features)
+          const collageFiles = files.filter((file) =>
+            /^collage_(\d+)_analysis\.json$/.test(file),
+          );
+          for (const file of collageFiles) {
+            const sec = parseInt(
+              file.match(/^collage_(\d+)_analysis\.json$/)?.[1] || '0',
+            );
+            const fullPath = path.join(videoFolder, file);
+            const content = await fs.promises.readFile(fullPath, 'utf-8');
+            const parsed = JSON.parse(content);
+            const detections = parsed.detections ?? [];
+
+            for (const feature of detections) {
+              const f = feature.features || {};
+
+              await this.databaseService.query(
+                ` 
+                INSERT INTO features_new (
+                  video_name, sec, object_name, description,
+                  color1, color2, size, orientation, type
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                `,
+                [
+                  videoName,
+                  sec,
+                  feature.object_name ?? '',
+                  feature.description ?? '',
+                  f.color1 ?? f.upper_clothing_color ?? '',
+                  f.color2 ?? f.lower_clothing_color ?? '',
+                  f.size ?? '',
+                  f.orientation ?? f.posture ?? '',
+                  f.type ?? f.age_group ?? '',
+                ],
+              );
+            }
+          }
+
+          // 3. Procesar archivos de detections_*.txt
+          const detectionFiles = files.filter((f) =>
+            /^detections_(\d+)\.txt$/.test(f),
+          );
+
+          for (const file of detectionFiles) {
+            const sec = parseInt(
+              file.match(/^detections_(\d+)\.txt$/)?.[1] || '0',
+            );
+            const fullPath = path.join(videoFolder, file);
+            const content = await fs.promises.readFile(fullPath, 'utf-8');
+            const lines = content.trim().split('\n');
+
+            for (const line of lines) {
+              const parts = line.split(',');
+
+              if (parts.length !== 8) {
+                console.warn(`Línea inválida en ${file}: ${line}`);
+                continue;
+              }
+              const [
+                object_name,
+                x1,
+                y1,
+                x2,
+                y2,
+                color,
+                proximity,
+                secondFromFile,
+              ] = parts;
+
+              await this.databaseService.query(
+                `
+                INSERT INTO objects_new (
+                  object_name, video_name, x1, y1, x2, y2,
+                  color, proximity, sec
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                `,
+                [
+                  object_name ?? '',
+                  videoName,
+                  parseInt(x1),
+                  parseInt(y1),
+                  parseInt(x2),
+                  parseInt(y2),
+                  color ?? '',
+                  proximity ?? '',
+                  parseInt(secondFromFile), // puedes usar `sec` también, deberían coincidir
+                ],
+              );
+            }
+          }
+
+          // 4. Procesar escenario_analysis.json
+          const escenarioPath = path.join(
+            videoFolder,
+            'escenario_analysis.json',
+          );
+          const rawContent = await fs.promises.readFile(escenarioPath, 'utf-8');
+
+          // Primera capa de JSON: string dentro de string
+          const innerJson = JSON.parse(rawContent);
+
+          // Segunda capa: el verdadero objeto JSON
+          const parsed =
+            typeof innerJson === 'string' ? JSON.parse(innerJson) : innerJson;
+
+          const scene = parsed.scene || {};
+          const features = scene.features || {};
+
+          await this.databaseService.query(
+            `
+            INSERT INTO scenarios_new (
+              video_name, environment_type, description,
+              weather, time_of_day, terrain, crowd_level, lighting
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            `,
+            [
+              videoName,
+              scene.environment_type ?? '',
+              scene.description ?? '',
+              features.weather ?? '',
+              features.time_of_day ?? '',
+              features.terrain ?? '',
+              features.crowd_level ?? '',
+              features.lighting ?? '',
+            ],
+          );
+
+          // 5. Ejecutar las alertas
+          await this.executeAlerts(); // <-- LLAMADA CLAVE
 
           resolve({
             message: 'Video scan completed successfully',
             results: outputData.trim().split('\n'),
           });
-        } else {
-          console.error('Python script execution failed:', errorData);
-          reject(
+        } catch (error) {
+          console.error('Error processing video:', error);
+          return reject(
             new HttpException(
-              `Python script execution failed: ${errorData}`,
+              'Error processing video',
               HttpStatus.INTERNAL_SERVER_ERROR,
             ),
           );
@@ -167,6 +338,7 @@ export class VideoService {
     });
   }
 
+  // ################### OBTENER RESULTADOS ESCANEO ###################
   getScanResults(videoName: string): { results: any[] } {
     console.log('-----------------------------------');
     console.log('Getting scan results for video:', videoName);
@@ -254,6 +426,7 @@ export class VideoService {
     }
   }
 
+  // ################### HACER CONSULTA ###################
   async sendQueryToApiCluster(body: any): Promise<any> {
     console.log('-----------------------------------');
     console.log('Sending query to API cluster...');

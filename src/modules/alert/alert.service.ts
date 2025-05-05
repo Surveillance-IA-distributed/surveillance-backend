@@ -161,14 +161,18 @@ Persons:
     Alerta: "${alertText}"
     SQL:
     `;
-    
+
     try {
       const response: any = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: 'gpt-4',
           messages: [
-            { role: 'system', content: 'Eres un asistente que convierte descripciones en lenguaje natural en consultas SQL. Usa los ejemplos proporcionados como guía.' },
+            {
+              role: 'system',
+              content:
+                'Eres un asistente que convierte descripciones en lenguaje natural en consultas SQL. Usa los ejemplos proporcionados como guía.',
+            },
             { role: 'user', content: prompt },
           ],
         },
@@ -179,7 +183,7 @@ Persons:
           },
         },
       );
-    
+
       const sql = response.data.choices[0].message.content.trim();
       return sql;
     } catch (error) {
@@ -193,20 +197,19 @@ Persons:
       console.log('ℹ️ No hay alertas para ejecutar.');
       return;
     }
-  
+
     console.log('🚨 Ejecutando alertas...');
-  
+
     try {
       const response = await axios.post(`${this.backendUrl}/execute_alerts`, {
         alerts: this.alerts,
       });
-  
+
       console.log('✅ Respuesta del backend:', response.data);
     } catch (error) {
       console.error('❌ Error al enviar alertas al backend:', error.message);
     }
-  
+
     this.alerts = [];
   }
-  
 }

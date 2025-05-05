@@ -43,10 +43,9 @@ export class VideoService {
 
       if (videoNames.length === 0) {
         console.log('No videos found in the detections folder.');
-        throw new HttpException(
-          'No videos found in the detections folder',
-          HttpStatus.NOT_FOUND,
-        );
+        return {
+          videos: [],
+        };
       }
 
       console.log('Videos found:', videoNames);
@@ -55,6 +54,11 @@ export class VideoService {
       };
     } catch (error) {
       console.error('Error reading videos:', error);
+
+      if (error instanceof HttpException) {
+        throw error; // Propaga el error original (como el 404)
+      }
+
       throw new HttpException(
         'Error reading videos',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -78,10 +82,9 @@ export class VideoService {
 
       if (videoFiles.length === 0) {
         console.log('No hay videos en uploads');
-        throw new HttpException(
-          'No uploaded videos found',
-          HttpStatus.NOT_FOUND,
-        );
+        return {
+          videos: [],
+        };
       }
 
       console.log('Videos encontrados en uploads:', videoFiles);
@@ -90,6 +93,11 @@ export class VideoService {
       };
     } catch (error) {
       console.error('Error leyendo carpeta uploads:', error);
+
+      if (error instanceof HttpException) {
+        throw error; // Propaga el error original (como el 404)
+      }
+
       throw new HttpException(
         'Error reading uploaded videos',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -140,7 +148,7 @@ export class VideoService {
           console.log('Python script executed successfully:', outputData);
 
           // ✅ Aquí ejecutamos las alertas guardadas
-          await this.executeAlerts(); // <-- LLAMADA CLAVE
+          // await this.executeAlerts(); // <-- LLAMADA CLAVE
 
           resolve({
             message: 'Video scan completed successfully',

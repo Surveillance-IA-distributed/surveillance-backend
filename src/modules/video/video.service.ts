@@ -147,11 +147,15 @@ export class VideoService {
     const detectionsFolder = path.join(process.cwd(), 'detections');
 
     return new Promise((resolve, reject) => {
-      const pythonProcess = spawn('python3', [
-        scriptPath,
-        uploadFolder,
-        detectionsFolder,
-      ]);
+      const pythonProcess = spawn(
+        'python3',
+        [scriptPath, uploadFolder, detectionsFolder],
+        {
+          env: {
+            ...process.env,
+          },
+        },
+      );
 
       let outputData = '';
       let errorData = '';

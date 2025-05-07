@@ -9,7 +9,7 @@ import { VideoResultsModule } from './modules/video-results/video-results.module
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, 
+      isGlobal: true,
     }),
     VideoModule,
     SeederModule,

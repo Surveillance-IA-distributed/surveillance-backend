@@ -184,7 +184,8 @@ Persons:
         },
       );
 
-      const sql = response.data.choices[0].message.content.trim();
+      const sqlRaw = response.data.choices[0].message.content.trim();
+      const sql = sqlRaw.replace(/^[-\s]+/, '');
       return sql;
     } catch (error) {
       console.error('❌ Error al generar SQL con OpenAI:', error.message);
@@ -201,9 +202,11 @@ Persons:
     console.log('🚨 Ejecutando alertas...');
 
     try {
-      const response = await axios.post(`${this.backendUrl}/execute_alerts`, {
-        alerts: this.alerts,
-      });
+      console.log('🔄 Enviando alertas al backend:', this.alerts);
+      const response = await axios.post(
+        `${this.backendUrl}/execute_alerts`,
+        this.alerts,
+      );
 
       console.log('✅ Respuesta del backend:', response.data);
     } catch (error) {

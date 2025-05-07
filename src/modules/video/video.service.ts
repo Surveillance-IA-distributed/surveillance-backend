@@ -59,6 +59,9 @@ export class VideoService {
     const detectionFolder = path.join(process.cwd(), 'detections');
 
     try {
+      // Crear crapeta si no existe
+      await fs.promises.mkdir(detectionFolder, { recursive: true });
+
       const files = await fs.promises.readdir(detectionFolder);
       const videoNames: string[] = [];
 

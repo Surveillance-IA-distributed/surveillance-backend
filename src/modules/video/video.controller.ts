@@ -70,4 +70,11 @@ export class VideoController {
 
     return { message: 'Alerta agregada y ejecutada (si corresponde).' };
   }
+
+  // TEST
+  @Post('execute-alerts')
+  async executeAlerts() {
+    this.videoService.executeAlerts();
+    return { message: 'Alerta agregada y ejecutada (si corresponde).' };
+  }
 }

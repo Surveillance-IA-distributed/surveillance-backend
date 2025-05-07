@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { DatabaseService } from 'src/database/database.service';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import * as fs from 'fs';
@@ -9,10 +10,15 @@ import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class VideoService {
+  private readonly apiUrl: string;
+
   constructor(
     private readonly alertService: AlertService,
     private readonly databaseService: DatabaseService,
-  ) {}
+    private readonly ConfigService: ConfigService,
+  ) {
+    this.apiUrl = this.ConfigService.get<string>('URL_BACKEND')!;
+  }
 
   private uploadedVideos: string[] = [];
 
@@ -368,7 +374,11 @@ export class VideoService {
         try {
           const content = fs.readFileSync(filePath, 'utf-8');
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const jsonContent = JSON.parse(content);
+          let jsonContent = JSON.parse(content);
+          if (typeof jsonContent === 'string') {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            jsonContent = JSON.parse(jsonContent); // Segundo parse
+          }
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return {
             type: 'json',
@@ -446,41 +456,53 @@ export class VideoService {
 
     console.log('Received query:', body);
 
-    // Tomar solo el primer valor si es un array
+    // 🔍 Resolver environment_type
     let resolve_enviroment_type: string | null = null;
     if (Array.isArray(environment_type) && environment_type.length > 0) {
-      resolve_enviroment_type = environment_type[0] as string;
-    } else {
-      resolve_enviroment_type = null;
+      resolve_enviroment_type = environment_type[0].trim();
+    } else if (
+      typeof environment_type === 'string' &&
+      environment_type.trim() !== ''
+    ) {
+      resolve_enviroment_type = environment_type.trim();
     }
 
+    // 🔍 Resolver object_name
     let resolve_object_name: string | null = null;
     if (Array.isArray(object_name) && object_name.length > 0) {
-      resolve_object_name = object_name[0] as string;
-    } else {
-      resolve_object_name = null;
+      resolve_object_name = object_name[0].trim();
+    } else if (typeof object_name === 'string' && object_name.trim() !== '') {
+      resolve_object_name = object_name.trim();
     }
 
+    // 🔍 Resolver proximity
     let resolve_proximity: string | null = null;
     if (Array.isArray(proximity) && proximity.length > 0) {
-      resolve_proximity = proximity[0] as string;
-    } else {
-      resolve_proximity = null;
+      resolve_proximity = proximity[0].trim();
+    } else if (typeof proximity === 'string' && proximity.trim() !== '') {
+      resolve_proximity = proximity.trim();
+    }
+
+    // 🔍 Resolver color
+    let resolve_color: string | null = null;
+    if (Array.isArray(color) && color.length > 0) {
+      resolve_color = color[0].trim();
+    } else if (typeof color === 'string' && color.trim() !== '') {
+      resolve_color = color.trim();
     }
 
     const queryData = {
       type,
-      video_name: video_name || null,
+      video_name: video_name,
       environment_type: resolve_enviroment_type,
-      object_name: resolve_object_name || null,
-      color: color || null,
-      proximity: resolve_proximity || null,
+      object_name: resolve_object_name,
+      color: color,
+      proximity: resolve_proximity,
     };
     console.log(' Sending Query data:', queryData);
 
     // Todo... Completar con la logica de la api
-    const apiUrl =
-      'http://ec2-18-208-129-187.compute-1.amazonaws.com:1234/receive_characteristics';
+    const apiUrl = `${this.apiUrl}/receive_characteristics`;
 
     try {
       const response = await axios.post(apiUrl, queryData);

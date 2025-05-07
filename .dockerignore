@@ -9,5 +9,5 @@ Dockerfile*
 .idea
 .vscode
 coverage
-uploads
-detections
+# uploads
+# detections

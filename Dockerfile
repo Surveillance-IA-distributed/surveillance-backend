@@ -29,6 +29,9 @@ COPY --from=builder /usr/src/app /usr/src/app
 COPY ./python /usr/src/app/python
 # COPY ./scripts /usr/src/app/scripts
 
+# Crear directorios necesarios
+COPY ./detections /usr/src/app/detections
+
 # Instalar dependencias Python para producción
 RUN pip3 install --no-cache-dir -r ./python/requirements.txt
 
